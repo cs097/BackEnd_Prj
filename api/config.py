@@ -1,6 +1,6 @@
 db = {
     'user'	: 'root',
-    'password'	: 'qnfgnl12',
+    'password'	: 'backend',
     'host'	: 'localhost',
     'port'	: 3306,
     'database'	: 'miniter'

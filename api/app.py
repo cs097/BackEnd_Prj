@@ -1,16 +1,15 @@
-import bcrypt
 import jwt
+import bcrypt
 
-from flask      import Flask, request, jsonify, current_app, Response, g
-from flask.json import JSONEncoder
-from sqlalchemy import create_engine, text
-from datetime import datetime, timedelta
+from flask	import Flask, request, Response, jsonify, current_app, g
+from flask.json	import JSONEncoder
+from sqlalchemy	import create_engine, text
+from datetime	import datetime, timedelta
 from functools	import wraps
-from flask_cors import CORS
-
-JWT_SECRET_KEY = "secret"
+from flask_cors	import CORS
 
 
+#Need to Custom Encoder for converting set to list
 class CustomJSONEncoder(JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
@@ -20,34 +19,22 @@ class CustomJSONEncoder(JSONEncoder):
 
 def get_user(user_id):
     user = current_app.database.execute(text("""
-        SELECT 
+        SELECT
             id,
             name,
             email,
             profile
         FROM users
         WHERE id = :user_id
-    """), {'user_id' : user_id}).fetchone()
+    """), {
+        'user_id' : user_id
+    }).fetchone()
 
     return {
-        'id'      : user['id'],
-        'name'    : user['name'],
-        'email'   : user['email'],
-        'profile' : user['profile']
-    } if user else None
-
-def get_user_id_pass(email):
-    user = current_app.database.execute(text("""
-        SELECT 
-            id,
-            hashed_password
-        FROM users
-        WHERE email = :email
-    """), {'email' : email}).fetchone()
-
-    return {
-        'id'			: user['id'],
-        'hashed_password'	: user['hashed_password']
+        'id'		: user['id'],
+        'name'		: user['name'],
+        'email'		: user['email'],
+        'profile'	: user['profile']
     } if user else None
 
 def insert_user(user):
@@ -96,29 +83,47 @@ def insert_unfollow(user_unfollow):
 
 def get_timeline(user_id):
     timeline = current_app.database.execute(text("""
-        SELECT 
+        SELECT
             t.user_id,
             t.tweet
         FROM tweets t
         LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
-        WHERE t.user_id = :user_id 
+        WHERE t.user_id = :user_id
         OR t.user_id = ufl.follow_user_id
     """), {
-        'user_id' : user_id 
+        'user_id' : user_id
     }).fetchall()
 
     return [{
-        'user_id' : tweet['user_id'],
-        'tweet'   : tweet['tweet']
+        'user_id'	: tweet['user_id'],
+        'tweet'		: tweet['tweet']
     } for tweet in timeline]
 
+def get_user_id_and_password(email):
+    row = current_app.database.execute(text("""
+        SELECT
+            id,
+            hashed_password
+        FROM users
+        WHERE email = :email
+    """), {'email' : email}).fetchone()
+
+    return {
+        'id'			: row['id'],
+         'hashed_password'	: row['hashed_password']
+    } if row else None
+
+################################################################
+#       Decorators
+################################################################
+#Login Decorator function
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         access_token = request.headers.get('Authorization')
         if access_token is not None:
             try:
-                payload = jwt.decode(access_token, JWT_SECRET_KEY, 'HS256')
+                payload = jwt.decode(access_token, current_app.config['JWT_SECRET_KEY'], 'HS256')
             except jwt.InvalidTokenError:
                 payload = None
 
@@ -127,11 +132,13 @@ def login_required(f):
             user_id	= payload['user_id']
             g.user_id	= user_id
             g.user	= get_user(user_id) if user_id else None
+
         else:
             return Response(status=401)
 
         return f(*args, **kwargs)
     return decorated_function
+
 
 def create_app(test_config = None):
     app = Flask(__name__)
@@ -145,14 +152,15 @@ def create_app(test_config = None):
     else:
         app.config.update(test_config)
 
-    database     = create_engine(app.config['DB_URL'], encoding = 'utf-8', max_overflow = 0)
+    database = create_engine(app.config['DB_URL'], encoding = 'utf-8', max_overflow = 0)
     app.database = database
+    app.config['JWT_SECRET_KEY'] = "secret"
 
-    @app.route("/ping", methods=['GET'])
+    @app.route('/ping', methods=['GET'])
     def ping():
         return "pong"
 
-    @app.route("/sign-up", methods=['POST'])
+    @app.route('/sign-up', methods=['POST'])
     def sign_up():
         new_user    = request.json
         new_user['password'] = bcrypt.hashpw(
@@ -160,7 +168,7 @@ def create_app(test_config = None):
             bcrypt.gensalt()
         )
         new_user_id = insert_user(new_user)
-        new_user    = get_user(new_user_id)
+        new_user = get_user(new_user_id)
 
         return jsonify(new_user)
 
@@ -169,24 +177,19 @@ def create_app(test_config = None):
         credential	= request.json
         email		= credential['email']
         password	= credential['password']
-#        row = database.execute(text("""
-#            SELECT
-#                id,
-#                hashed_password
-#            FROM users
-#            WHERE name = :name
-#        """), {'name' : name}).fetchone()
-        row = get_user_id_pass(email)
-        if row and bcrypt.checkpw(password.encode('UTF-8'), row['hashed_password'].encode('UTF-8')):
-            user_id = row['id']
+        user_credential = get_user_id_and_password(email)
+
+        if user_credential and bcrypt.checkpw(password.encode('UTF-8'), user_credential['hashed_password'].encode('UTF-8')) :
+            user_id = user_credential['id']
             payload = {
-                'user_id' : user_id,
-                'exp' : datetime.utcnow() + timedelta(seconds = 60 * 60 * 24)
+                'user_id'	: user_id,
+                'exp'		: datetime.utcnow() + timedelta(seconds = 60*60*24)
             }
-            token = jwt.encode(payload, JWT_SECRET_KEY, 'HS256')
+            token = jwt.encode(payload, app.config['JWT_SECRET_KEY'], 'HS256')
 
             return jsonify({
-                'access_token' : token.decode('UTF-8')
+                'access_token' : token.decode('UTF-8'),
+                'user_id' : user_id
             })
         else:
             return '', 401
@@ -194,12 +197,12 @@ def create_app(test_config = None):
     @app.route('/tweet', methods=['POST'])
     @login_required
     def tweet():
-        user_tweet	= request.json
-        user_tweet['id']= g.user_id
+        user_tweet = request.json
+        user_tweet['id'] = g.user_id
         tweet      = user_tweet['tweet']
 
         if len(tweet) > 300:
-            return '300자를 초과했습니다', 400
+            return 'Exceeded 300 Bytes!', 400
 
         insert_tweet(user_tweet)
 
@@ -209,7 +212,9 @@ def create_app(test_config = None):
     @login_required
     def follow():
         payload = request.json
-        insert_follow(payload) 
+        payload['id'] = g.user_id
+
+        insert_follow(payload)
 
         return '', 200
 
@@ -217,6 +222,8 @@ def create_app(test_config = None):
     @login_required
     def unfollow():
         payload = request.json
+        payload['id'] = g.user_id
+
         insert_unfollow(payload)
 
         return '', 200
@@ -224,8 +231,8 @@ def create_app(test_config = None):
     @app.route('/timeline/<int:user_id>', methods=['GET'])
     def timeline(user_id):
         return jsonify({
-            'user_id'  : user_id,
-            'timeline' : get_timeline(user_id)
+            'user_id'	: user_id,
+            'timeline'	: get_timeline(user_id)
         })
 
     @app.route('/timeline', methods=['GET'])
@@ -234,9 +241,8 @@ def create_app(test_config = None):
         user_id = g.user_id
 
         return jsonify({
-            'user_id'	: user_id,
-            'timeline'	: get_timeline(user_id)
+            'user_id' : user_id,
+            'timeline': get_timeline(user_id)
         })
-
 
     return app
