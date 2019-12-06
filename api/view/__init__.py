@@ -31,7 +31,7 @@ def login_required(f):
 
             user_id	= payload['user_id']
             g.user_id	= user_id
-            g.user	= get_user(user_id) if user_id else None
+            #g.user	= get_user(user_id) if user_id else None
 
         else:
             return Response(status=401)
@@ -68,14 +68,14 @@ def create_endpoints(app, services):
             token		= user_service.generate_access_token(user_id)
 
             return jsonify({
-                'user_id'	: user_id,
+                #'user_id'	: user_id,
                 'access_token'	: token
             })
         else:
             return '', 401
 
     @app.route("/tweet", methods=['POST'])
-    @login_reqiured
+    @login_required
     def tweet():
         user_tweet	= request.json
         tweet		= user_tweet['tweet']
@@ -90,7 +90,7 @@ def create_endpoints(app, services):
     @app.route("/follow", methods=['POST'])
     @login_required
     def follow():
-        paylaod		= request.json
+        payload		= request.json
         user_id		= g.user_id
         follow_id	= payload['follow']
 
@@ -101,7 +101,7 @@ def create_endpoints(app, services):
     @app.route("/unfollow", methods=['POST'])
     @login_required
     def unfollow():
-        paylaod		= request.json
+        payload		= request.json
         user_id		= g.user_id
         unfollow_id	= payload['unfollow']
 

@@ -1,7 +1,7 @@
-from .user_service	import UserService
-from .tweet_service	import TweetService
+from .user_dao	import UserDao
+from .tweet_dao	import TweetDao
 
 __all__ = [
-    'UserService',
-    'TweetService'
+    'UserDao',
+    'TweetDao'
 ]

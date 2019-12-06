@@ -50,7 +50,7 @@ class UserDao:
 
     def insert_unfollow(self, user_id, unfollow_id):
         return self.db.execute(text("""
-            DELETE FROM users_follow_list (
+            DELETE FROM users_follow_list
             WHERE user_id	= :id
             AND follow_user_id	= :unfollow
         """), {

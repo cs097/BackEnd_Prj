@@ -25,7 +25,6 @@ def create_app(test_config = None):
     else:
         app.config.update(test_config)
 
-    app.config['JWT_SECRET_KEY'] = "secret"
     database = create_engine(app.config['DB_URL'], encoding = 'utf-8', max_overflow = 0)
 
     ## Persistenace Layer
