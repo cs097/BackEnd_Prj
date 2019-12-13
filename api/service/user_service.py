@@ -1,5 +1,6 @@
 import jwt
 import bcrypt
+import os
 
 from datetime	import datetime, timedelta
 
@@ -45,3 +46,12 @@ class UserService:
 
     def get_user_id_and_password(self, email):
         return self.user_dao.get_user_id_and_password(email)
+
+    def save_profile_picture(self, picture, filename, user_id):
+        profile_pic_path_and_name = os.path.join(self.config.UPLOAD_DIRECTORY, filename)
+        picture.save(profile_pic_path_and_name)
+
+        return  self.user_dao.save_profile_picture(profile_pic_path_and_name, user_id)
+
+    def get_profile_picture(self, user_id):
+        return self.user_dao.get_profile_picture(user_id)

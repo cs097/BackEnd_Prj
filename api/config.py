@@ -23,3 +23,5 @@ test_config = {
     'JWT_SECRET_KEY' : 'secret',
     'JWT_EXP_DELTA_SECONDS' : 7*24*60*60
 }
+
+UPLOAD_DIRECTORY = './profile_pictures'
